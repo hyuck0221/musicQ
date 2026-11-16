@@ -89,5 +89,3 @@ npm run package:server
 ```
 
 릴리즈 파일은 `releases/musicq-server.tar.gz`에 생성됩니다. 빌드된 화면이 포함되어 있습니다.
-
-<sub>UI direction: [unslop by Damir Sokolovsky](https://heydamir.design/unslop), CC BY 4.0.</sub>

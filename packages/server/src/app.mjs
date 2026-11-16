@@ -86,7 +86,7 @@ export async function createApp(config) {
           trackId: z.string().uuid().optional(),
           playing: z.boolean().optional(),
           position: z.number().min(0).max(300).optional(),
-          target: z.enum(["browser", "server"]).optional(),
+          target: z.literal("browser").optional(),
           volume: z.number().min(0).max(1).optional(),
         })
         .parse(req.body),

@@ -44,6 +44,22 @@ async function fixture(t) {
   };
   return { app, config, dir, req };
 }
+test("volume works without a selected track and playback stays in the browser", async (t) => {
+  const { app, req } = await fixture(t);
+  const result = await req("PATCH", "/api/player", { volume: 0.35 });
+  assert.equal(result.status, 200);
+  assert.equal(result.body.volume, 0.35);
+  assert.equal(result.body.trackId, null);
+  assert.equal(result.body.playing, false);
+  assert.equal(result.body.target, "browser");
+  assert.equal((await req("PATCH", "/api/player", { volume: 0 })).status, 200);
+  assert.equal(app.music.player.volume, 0);
+  assert.equal((await req("PATCH", "/api/player", { volume: 1.1 })).status, 400);
+  assert.equal((await req("PATCH", "/api/player", { target: "server" })).status, 400);
+  assert.equal((await req("PATCH", "/api/player", { playing: true })).status, 400);
+  assert.equal(app.music.player.volume, 0);
+});
+
 test("intent plan computes scores before inference, respects explicit overrides and seed", () => {
   const input = requestSchema.parse({
     prompt: "warm and calm piano",

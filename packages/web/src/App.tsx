@@ -179,7 +179,7 @@ export default function App() {
       )
     : 0;
   const mediaUrl =
-    online && selectedTrack && state.player.target === "browser"
+    online && selectedTrack
       ? new URL(selectedTrack.mediaPath, location.origin).href
       : null;
   const audioSource = mediaUrl;
@@ -190,7 +190,6 @@ export default function App() {
     if (
       !online ||
       !selectedTrack ||
-      state.player.target !== "browser" ||
       !audioSource
     ) {
       a.pause();
@@ -901,14 +900,14 @@ export default function App() {
       </main>
       <footer className="player">
         <div className="now-playing">
-          <div>
-            <strong>{selectedTrack?.title || "재생 안 함"}</strong>
-            {selectedTrack && (
+          {selectedTrack && (
+            <div>
+              <strong>{selectedTrack.title}</strong>
               <small>
                 {selectedTrack.genre} · {selectedTrack.mood}
               </small>
-            )}
-          </div>
+            </div>
+          )}
         </div>
         <div className="transport">
           <div className="transport-buttons">
@@ -969,19 +968,6 @@ export default function App() {
           </div>
         </div>
         <div className="output">
-          <select
-            aria-label="재생 장치"
-            value={state.player.target}
-            disabled={!online || !selectedTrack}
-            onChange={(e) =>
-              void act(() =>
-                api("/api/player", "PATCH", { target: e.target.value }),
-              )
-            }
-          >
-            <option value="browser">이 브라우저</option>
-            <option value="server">서버 PC</option>
-          </select>
           <Volume2 />
           <input
             aria-label="음량"
@@ -990,7 +976,7 @@ export default function App() {
             max={1}
             step={0.01}
             value={state.player.volume}
-            disabled={!online || !selectedTrack}
+            disabled={!online}
             onChange={(e) =>
               void act(() =>
                 api("/api/player", "PATCH", { volume: +e.target.value }),

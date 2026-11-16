@@ -1,6 +1,7 @@
 """Contract tests against the official API shapes; no weights or GPU downloads."""
 import importlib.util
 import json
+from fnmatch import fnmatch
 from pathlib import Path
 import sys
 import tempfile
@@ -24,6 +25,60 @@ SPEC = {'resolvedPrompt': 'warm jazz', 'duration': 15, 'bpm': 80,
 
 
 class AdapterTests(unittest.TestCase):
+    def test_musicgen_large_downloads_indexed_bin_shards(self):
+        shards = ['pytorch_model-00001-of-00002.bin', 'pytorch_model-00002-of-00002.bin']
+        files = {name: b'weights' for name in shards}
+        files['pytorch_model.bin.index.json'] = json.dumps({
+            'weight_map': {'decoder.first': shards[0], 'decoder.last': shards[1]},
+        }).encode()
+        files['state_dict.bin'] = b'unused audiocraft checkpoint'
+        files['compression_state_dict.bin'] = b'unused codec checkpoint'
+        def download(**kwargs):
+            for name, content in files.items():
+                if any(fnmatch(name, pattern) for pattern in kwargs['allow_patterns']):
+                    (kwargs['local_dir'] / name).write_bytes(content)
+        with tempfile.TemporaryDirectory() as directory, patch.dict(sys.modules, {
+            'huggingface_hub': SimpleNamespace(snapshot_download=download),
+        }):
+            root = Path(directory)
+            manifest = root / 'musicq-model.json'
+            manifest.write_text(json.dumps({'family': 'musicgen', 'repo': 'facebook/musicgen-large'}))
+            assets.download_assets(manifest)
+            for shard in shards:
+                self.assertTrue((root / shard).is_file())
+            self.assertFalse((root / 'state_dict.bin').exists())
+            self.assertFalse((root / 'compression_state_dict.bin').exists())
+
+    def test_musicgen_rejects_incomplete_sharded_install(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'pytorch_model.bin.index.json').write_text(json.dumps({
+                'weight_map': {'first': 'pytorch_model-00001-of-00002.bin',
+                               'last': 'pytorch_model-00002-of-00002.bin'},
+            }))
+            (root / 'pytorch_model-00001-of-00002.bin').write_bytes(b'weights')
+            with self.assertRaisesRegex(RuntimeError, 'pytorch_model-00002-of-00002.bin'):
+                assets.validate_musicgen_weights(root)
+            (root / 'pytorch_model-00002-of-00002.bin').touch()
+            with self.assertRaisesRegex(RuntimeError, 'pytorch_model-00002-of-00002.bin'):
+                assets.validate_musicgen_weights(root)
+
+    def test_musicgen_accepts_single_and_safetensors_checkpoints(self):
+        for filename in ['pytorch_model.bin', 'model.safetensors']:
+            with self.subTest(filename=filename), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                with self.assertRaisesRegex(RuntimeError, '가중치 파일이 없습니다'):
+                    assets.validate_musicgen_weights(root)
+                (root / filename).write_bytes(b'weights')
+                assets.validate_musicgen_weights(root)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'model.safetensors.index.json').write_text(json.dumps({
+                'weight_map': {'first': 'model-00001-of-00001.safetensors'},
+            }))
+            (root / 'model-00001-of-00001.safetensors').write_bytes(b'weights')
+            assets.validate_musicgen_weights(root)
+
     def test_musicgen_corrects_inherited_decoder_config_on_python314(self):
         class DecoderConfig:
             pass

@@ -67,7 +67,7 @@ export type Player = {
   position: number;
   updatedAt: number;
   volume: number;
-  target: "browser" | "server";
+  target: "browser";
   error?: string;
 };
 export type State = {

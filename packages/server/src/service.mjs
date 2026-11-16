@@ -3,7 +3,6 @@ import { EventEmitter } from "node:events";
 import { mkdirSync, existsSync, unlinkSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID, randomInt } from "node:crypto";
-import { spawn } from "node:child_process";
 import { generate } from "./engine.mjs";
 import { planMusic, requestSchema } from "./planner.mjs";
 import { ModelManager } from "./models.mjs";
@@ -219,7 +218,6 @@ export class MusicService extends EventEmitter {
     if (!this.tracks.some((t) => t.id === id))
       throw new Error("음악을 찾을 수 없습니다");
     if (this.player.trackId === id) {
-      this.stopLocal();
       clearTimeout(this.endTimer);
       this.player = {
         ...this.player,
@@ -239,12 +237,6 @@ export class MusicService extends EventEmitter {
       throw new Error("음악을 찾을 수 없습니다");
     return join(this.config.dir, "audio", `${id}.wav`);
   }
-  stopLocal() {
-    if (this.localPlayer) {
-      this.localPlayer.kill("SIGTERM");
-      this.localPlayer = null;
-    }
-  }
   updatePlayer(patch) {
     const now = Date.now();
     const previous = this.player;
@@ -256,59 +248,29 @@ export class MusicService extends EventEmitter {
       ...previous,
       error: undefined,
       ...patch,
+      target: "browser",
       position: patch.position ?? position,
       updatedAt: now,
     };
     const track = this.tracks.find((t) => t.id === next.trackId);
-    if (!track) throw new Error("재생할 음악을 선택해 주세요");
+    if (!track) {
+      if (patch.trackId !== undefined || patch.playing !== undefined || patch.position !== undefined)
+        throw new Error("재생할 음악을 선택해 주세요");
+      this.player = next;
+      this.changed();
+      return this.player;
+    }
     next.position = Math.max(0, Math.min(next.position, track.duration));
     if (next.position >= track.duration) {
       if (patch.playing === true && patch.position === undefined)
         next.position = 0;
       else next.playing = false;
     }
-    this.stopLocal();
     clearTimeout(this.endTimer);
     this.player = next;
-    if (next.target === "server" && next.playing) {
-      const child = spawn(
-        "ffplay",
-        [
-          "-nodisp",
-          "-autoexit",
-          "-loglevel",
-          "error",
-          "-ss",
-          String(next.position),
-          "-volume",
-          String(Math.round(next.volume * 100)),
-          this.audioPath(track.id),
-        ],
-        { stdio: "ignore" },
-      );
-      this.localPlayer = child;
-      child.on("error", () => {
-        if (this.localPlayer === child) {
-          this.player = {
-            ...this.player,
-            playing: false,
-            error: "서버 재생에는 ffplay가 필요합니다 (brew install ffmpeg)",
-          };
-          this.changed();
-        }
-      });
-      child.on("exit", (code) => {
-        if (this.localPlayer === child && code && this.player.playing) {
-          this.player.playing = false;
-          this.player.error = "서버 오디오 장치를 확인해 주세요";
-          this.changed();
-        }
-      });
-    }
     if (next.playing)
       this.endTimer = setTimeout(
         () => {
-          this.stopLocal();
           this.player = {
             ...this.player,
             playing: false,
@@ -325,7 +287,6 @@ export class MusicService extends EventEmitter {
   async close() {
     this.closed = true;
     clearTimeout(this.endTimer);
-    this.stopLocal();
     this.models.close();
     this.active?.controller.abort();
     if (this.active)
