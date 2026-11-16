@@ -191,17 +191,14 @@ nav button svg {
   width: 16px;
   height: 16px;
 }
-.connection-status {
+.server-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   color: var(--secondary);
   padding: 8px 12px;
   font-size: 12px;
-  border: 1px solid var(--line);
   height: 36px;
-}
-.connection-status svg {
-  width: 14px;
-  height: 14px;
-  margin-left: 12px;
 }
 .status-dot {
   display: inline-block;
@@ -1097,13 +1094,12 @@ main {
   nav button svg {
     display: none;
   }
-  .connection-status {
+  .server-status {
     width: 32px;
     height: 32px;
     padding: 8px;
   }
-  .connection-status > span:nth-child(2),
-  .connection-status svg {
+  .server-status > span:nth-child(2) {
     display: none;
   }
   main {
@@ -1390,11 +1386,4 @@ main {
   .composer form > .range-field {
     grid-column: 1 / -1;
   }
-}
-
-.permission-note {
-  color: var(--secondary);
-  font-size: 12px;
-  line-height: 1.7;
-  margin: 12px 0;
 }

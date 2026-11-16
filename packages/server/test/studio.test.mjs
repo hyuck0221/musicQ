@@ -20,9 +20,7 @@ async function fixture(t) {
   const dir = await mkdtemp(join(tmpdir(), "musicq-test-"));
   const config = {
     dir,
-    token: "test-private-key",
     timeout: 10,
-    origins: ["http://localhost:5173"],
   };
   const app = await createApp(config);
   t.after(async () => {
@@ -34,7 +32,6 @@ async function fixture(t) {
       method,
       url,
       payload,
-      headers: { authorization: `Bearer ${config.token}` },
     });
     return {
       status: res.statusCode,
@@ -60,15 +57,16 @@ test("intent plan computes scores before inference, respects explicit overrides 
   assert.match(p.resolvedPrompt, /energy: 17\/100/);
   assert.throws(() => requestSchema.parse({ mode: "prompt", prompt: "" }));
 });
-test("HTTP auth, origin, validation and unknown models are rejected", async (t) => {
+test("same-origin API needs no key; foreign origins, invalid input and unknown models are rejected", async (t) => {
   const { app, req } = await fixture(t);
-  assert.equal((await app.inject("/api/state")).statusCode, 401);
+  assert.equal((await app.inject("/api/state")).statusCode, 200);
+  assert.equal((await app.inject({url: "/api/state", headers: {origin: "http://localhost:80"}})).statusCode, 200);
+  assert.equal((await app.inject({method: "POST", url: "/api/queue", headers: {"sec-fetch-site": "cross-site"}, payload: {duration: 5}})).statusCode, 403);
   assert.equal(
     (
       await app.inject({
         url: "/api/state",
         headers: {
-          authorization: "Bearer test-private-key",
           origin: "https://untrusted.example",
         },
       })
@@ -103,7 +101,7 @@ test("queue order and pause survive restart; stale reorders are rejected", async
     [b.id, a.id],
   );
 });
-test("generation persists planned metadata; signed WAV supports ranges, search, replay and deletion", async (t) => {
+test("generation persists planned metadata; WAV without signed URLs supports ranges, search, replay and deletion", async (t) => {
   const { app, req } = await fixture(t);
   const job = (
     await req("POST", "/api/queue", {
@@ -143,14 +141,7 @@ test("generation persists planned metadata; signed WAV supports ranges, search, 
     ).statusCode,
     416,
   );
-  assert.equal(
-    (
-      await app.inject(
-        `/api/audio/${track.id}?expires=9999999999&signature=bad`,
-      )
-    ).statusCode,
-    401,
-  );
+  assert.equal(track.mediaPath, `/api/audio/${track.id}`);
   await req("PATCH", "/api/player", {
     trackId: track.id,
     playing: true,
@@ -180,19 +171,18 @@ test("active cancellation kills inference and leaves following work paused", asy
   assert.equal(app.music.paused, true);
   assert.equal(app.music.tracks.length, 0);
 });
-test("WebSocket requires key and pushes authoritative changes", async (t) => {
+test("WebSocket sends state immediately without a key and rejects foreign origins", async (t) => {
   const { app, req } = await fixture(t);
   const address = await app.listen({ host: "127.0.0.1", port: 0 });
-  const bad = new WebSocket(address.replace("http", "ws") + "/ws");
-  await once(bad, "open");
-  const closed = once(bad, "close");
-  bad.send(JSON.stringify({ token: "wrong" }));
-  assert.equal((await closed)[0], 4001);
-  const ws = new WebSocket(address.replace("http", "ws") + "/ws");
+  const bad = new WebSocket(address.replace("http", "ws") + "/ws", { origin: "https://untrusted.example" });
+  bad.on("error", () => {});
+  const [, response] = await once(bad, "unexpected-response");
+  assert.equal(response.statusCode, 403);
+  bad.terminate();
+  const ws = new WebSocket(address.replace("http", "ws") + "/ws", { origin: address });
   t.after(() => ws.terminate());
-  await once(ws, "open");
   const initial = once(ws, "message");
-  ws.send(JSON.stringify({ token: "test-private-key" }));
+  await once(ws, "open");
   assert.equal(JSON.parse((await initial)[0]).jobs.length, 0);
   const pushed = once(ws, "message");
   await req("PATCH", "/api/queue", { paused: true });

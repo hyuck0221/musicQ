@@ -4,9 +4,9 @@
 
 음악을 만드는 **queue**, 음악을 재생하는 **cue**.
 
-로컬 모델은 내 컴퓨터에서, 컨트롤은 브라우저에서.
+로컬 AI 음악 생성과 브라우저 컨트롤 패널.
 
-[**컨트롤 패널 열기 ↗**](https://musicQ.hshim.dev) · [서버 다운로드](https://musicQ.hshim.dev/downloads/musicq-server.tar.gz) · [설치·운영 가이드](docs/setup.md) · [사용자 모델 연결](docs/model-adapter.md)
+[설치·운영 가이드](docs/setup.md) · [사용자 모델 연결](docs/model-adapter.md)
 
 </div>
 
@@ -16,46 +16,42 @@
 - **관리** — 모델 설치, 큐 순서 변경·중단, 음악 재생성
 - **라이브러리** — 재생·삭제, 속성 점수와 다중 조건 검색
 
-음악·모델·큐는 서버 PC에 저장됩니다. 연결 정보는 브라우저에 저장되어 다음 접속부터 자동 연결됩니다.
+서버 하나가 화면과 API를 함께 제공합니다. 음악·모델·큐는 서버 PC에 저장됩니다.
 
 ## 시작하기
 
-macOS는 **Node.js 24 이상·Python 3.11–3.12**, Docker는 **Docker Compose**가 필요합니다.
+```sh
+git clone https://github.com/hyuck0221/musicQ.git
+cd musicQ
+```
 
 ### macOS
 
-터미널에서 설치합니다. 로그인 시 서버가 자동 실행됩니다.
+Node.js **24 이상**, npm, Python **3.11–3.12**를 준비한 뒤 설치합니다. 로그인 시 자동 실행됩니다.
 
 ```sh
-curl -fsSL https://musicQ.hshim.dev/install.sh | bash
+bash scripts/install-macos.sh
 ```
 
-설치 스크립트는 서버 패키지를 내려받고 SHA-256을 확인합니다. 설정·음악·모델은 `~/Library/Application Support/musicQ`에 보관합니다.
-
-연결 키 확인:
-
-```sh
-cat "$HOME/Library/Application Support/musicQ/data/token"
-```
+설치 후 [http://127.0.0.1:4310](http://127.0.0.1:4310)을 여세요. 주소 입력이나 연결 키 없이 바로 사용할 수 있습니다.
 
 ### Docker
 
-서버 패키지를 내려받아 실행합니다.
-
 ```sh
-curl -fsSL https://musicQ.hshim.dev/downloads/musicq-server.tar.gz | tar -xz
-cd musicq-server
 docker compose up -d --build
-docker compose logs server
 ```
 
-### 컨트롤 패널 연결
+[http://127.0.0.1:4310](http://127.0.0.1:4310)에서 동일하게 사용합니다. 음악·모델은 Docker 볼륨에 보관합니다.
 
-1. 같은 컴퓨터는 `http://localhost:4310`, 같은 네트워크는 `http://서버의-로컬-IP:4310`을 사용합니다.
-2. [musicQ.hshim.dev](https://musicQ.hshim.dev)에서 **서버 주소**와 **연결 키**를 입력합니다.
-3. **모델**에서 사용할 모델을 설치하고 첫 음악을 큐에 추가합니다.
+### 직접 실행
 
-서버는 기본적으로 `http://127.0.0.1:4310`에서 실행됩니다. 지원 브라우저에서 로컬 네트워크 접근을 허용하면 HTTP로 연결할 수 있습니다. 외부 서버나 HTTP 접속을 지원하지 않는 브라우저는 [HTTPS 설정](docs/setup.md#배포된-웹과-로컬-서버-연결)을 사용하세요.
+```sh
+npm ci
+npm run build
+npm start
+```
+
+브라우저에서 **모델**을 설치하고 첫 음악을 큐에 추가하세요. 다른 기기에서 접속하는 방법은 [가이드](docs/setup.md#다른-기기에서-접속)를 참고하세요.
 
 ## 지원 모델
 
@@ -68,8 +64,7 @@ docker compose logs server
 
 Stable Audio 3는 Hugging Face 접근 승인과 서버 `HF_TOKEN` 설정이 필요합니다. 모델별 메모리 요구사항·라이선스는 [가이드](docs/setup.md#모델)에서 확인하세요. 기본 테스트 신시사이저는 AI 모델 설치 없이 동작을 확인하는 용도입니다.
 
-<details>
-<summary>개발 및 배포</summary>
+## 개발
 
 ```sh
 npm ci
@@ -77,18 +72,17 @@ cp .env.example .env
 npm run dev
 ```
 
-웹 `http://127.0.0.1:5173` · 서버 `http://127.0.0.1:4310`
+개발 화면은 [http://127.0.0.1:5173](http://127.0.0.1:5173)입니다. Vite가 API와 WebSocket을 로컬 서버로 전달합니다.
 
-`packages/server`는 설치형 서버, `packages/web`은 Vercel에 배포하는 정적 웹입니다.
+`packages/server`는 모델·큐·저장소와 웹 제공을 담당하고, `packages/web`은 빌드 시 서버에 포함되는 React 화면입니다.
 
 ```sh
 npm test
 npm run check
 npm run build
+npm run package:server
 ```
 
-[Vercel 배포](docs/setup.md#vercel-웹-배포) · [서버 설정·삭제](docs/setup.md#macos-설치형)
-
-</details>
+릴리즈 파일은 `releases/musicq-server.tar.gz`에 생성됩니다. 빌드된 화면이 포함되어 있습니다.
 
 <sub>UI direction: [unslop by Damir Sokolovsky](https://heydamir.design/unslop), CC BY 4.0.</sub>

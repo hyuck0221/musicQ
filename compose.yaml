@@ -6,10 +6,8 @@ services:
     ports:
       - "127.0.0.1:4310:4310"
     environment:
-      MUSICQ_ORIGINS: ${MUSICQ_ORIGINS:-https://musicq.hshim.dev,http://localhost:5173,http://127.0.0.1:5173}
       HF_TOKEN: ${HF_TOKEN:-}
       MUSICQ_DEVICE: ${MUSICQ_DEVICE:-cpu}
-      MUSICQ_TOKEN: ${MUSICQ_TOKEN:-}
       MUSICQ_MODEL_TIMEOUT: ${MUSICQ_MODEL_TIMEOUT:-1800}
     volumes:
       - musicq-data:/data

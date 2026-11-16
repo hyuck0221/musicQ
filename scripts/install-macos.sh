@@ -8,9 +8,17 @@ fi
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 APP_DIR="$HOME/Library/Application Support/musicQ"
 AGENT_FILE="$HOME/Library/LaunchAgents/local.musicq.server.plist"
+# Source checkouts build once; release archives already contain the control panel.
+if [[ -d "$REPO_DIR/packages/web/src" ]]; then
+  (cd "$REPO_DIR" && npm ci && npm run build)
+fi
+[[ -f "$REPO_DIR/packages/server/web/index.html" ]] || { echo '화면 빌드가 없습니다. 저장소에서 npm ci && npm run build를 실행하세요'; exit 1; }
+
 mkdir -p "$APP_DIR/server" "$APP_DIR/data" "$APP_DIR/logs" "$(dirname "$AGENT_FILE")"
 cp -R "$REPO_DIR/packages/server/src" "$APP_DIR/server/"
 cp "$REPO_DIR/packages/server/package.json" "$APP_DIR/server/"
+rm -rf "$APP_DIR/server/web"
+cp -R "$REPO_DIR/packages/server/web" "$APP_DIR/server/web"
 cp "$REPO_DIR/scripts/uninstall-macos.sh" "$APP_DIR/uninstall.sh"
 chmod 700 "$APP_DIR/uninstall.sh"
 npm install --prefix "$APP_DIR/server" --omit=dev --ignore-scripts
@@ -20,7 +28,6 @@ if [[ ! -f "$APP_DIR/server.env" ]]; then
 MUSICQ_HOST=127.0.0.1
 MUSICQ_PORT=4310
 MUSICQ_DATA_DIR="$APP_DIR/data"
-MUSICQ_ORIGINS=https://musicq.hshim.dev,http://localhost:5173,http://127.0.0.1:5173
 MUSICQ_PYTHON=$PYTHON_BIN
 MUSICQ_DEVICE=cpu
 ENV
@@ -44,7 +51,6 @@ PY
 launchctl bootout "gui/$(id -u)/local.musicq.server" 2>/dev/null || true
 launchctl bootstrap "gui/$(id -u)" "$AGENT_FILE"
 echo "설치 완료 · http://127.0.0.1:4310"
-echo "컨트롤 패널: https://musicQ.hshim.dev"
-echo "연결 키: $APP_DIR/data/token"
+echo "브라우저에서 http://127.0.0.1:4310 을 여세요"
 echo "설정: $APP_DIR/server.env"
 echo "로그: $APP_DIR/logs/server.log"

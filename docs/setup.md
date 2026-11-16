@@ -1,31 +1,32 @@
 # 설치·운영 가이드
 
-[컨트롤 패널](https://musicQ.hshim.dev) · [README로 돌아가기](../README.md)
+[README로 돌아가기](../README.md)
 
-음악을 만들기 위한 **queue**, 음악을 재생하는 **cue**. 로컬 음악 생성 서버와 브라우저 컨트롤 패널입니다.
-
-두 개의 배포 단위로 구성됩니다.
+서버 PC가 웹 화면·API·WebSocket·음악 파일을 같은 포트에서 제공합니다. 브라우저는 접속한 서버를 자동으로 사용합니다. 별도 웹 배포나 연결 키는 필요하지 않습니다.
 
 | 패키지 | 역할 |
 | --- | --- |
-| `packages/server` | macOS / Docker 서버. 모델 설치·추론, 생성 큐, 속성 계획, SQLite, WAV 저장, 재생 상태 관리 |
-| `packages/web` | 독립 배포 가능한 React / Vite 정적 웹. 서버 주소로 연결하는 컨트롤 패널 |
+| `packages/server` | 모델 설치·추론, 큐, SQLite, WAV 저장·전송, 프론트 제공 |
+| `packages/web` | 서버에 포함되는 React / Vite 컨트롤 패널 |
 
-## 바로 실행
+## 직접 실행
 
-Node.js **24 이상**, npm이 필요합니다. 모델을 설치할 때는 Python 3.11 또는 3.12를 권장합니다.
+Node.js **24 이상**, npm이 필요합니다. 모델 설치에는 Python **3.11–3.12**를 권장합니다.
 
 ```sh
+git clone https://github.com/hyuck0221/musicQ.git
+cd musicQ
 npm ci
 cp .env.example .env
-npm run dev
+npm run build
+npm start
 ```
 
-웹: http://127.0.0.1:5173 · 서버: http://127.0.0.1:4310
+[http://127.0.0.1:4310](http://127.0.0.1:4310)을 열면 스튜디오가 바로 표시됩니다. `npm run build`는 프론트를 빌드해 `packages/server/web/`에 복사합니다. 서버 데이터는 `.musicq/`에 보존됩니다.
 
-서버 실행 로그의 **연결 키**를 웹에 한 번 입력합니다. 인증에 성공하면 연결 정보가 이 브라우저에 저장되고 다음 방문·새로고침 시 자동 연결됩니다. 네트워크 장애는 자동 재시도하며, 인증에 실패하면 연결 설정을 다시 엽니다. 최초 실행 시 키가 생성되어 `.musicq/token`에 저장됩니다. 서버 데이터는 `.musicq/`에 남습니다. 토큰을 공개 저장소에 올리지 마세요.
+브라우저에는 생성 폼만 저장하며, 서버 주소·연결 키는 저장하지 않습니다. 이전 버전의 연결 정보는 새 화면에서 정리합니다. 연결이 끊기면 자동으로 재시도합니다.
 
-기본 제공되는 **테스트 신시사이저는 AI 모델이 아닙니다.** 별도 모델 다운로드 없이 연결·큐·생성·재생 흐름을 확인하는 용도입니다. 실제 AI 음악은 모델 화면에서 설치 후 선택합니다.
+테스트 신시사이저는 AI 모델 없이 생성·재생을 확인하는 용도입니다. 실제 음악 모델은 **모델** 화면에서 설치하세요.
 
 ## 모델
 
@@ -78,129 +79,67 @@ Stable Audio 3는 gated 모델입니다. [모델](https://huggingface.co/stabili
 
 ## macOS 설치형
 
-릴리즈 설치 주소는 [https://musicQ.hshim.dev/install.sh](https://musicQ.hshim.dev/install.sh)입니다.
+소스 저장소에서 다음 명령을 실행합니다.
 
 ```sh
-curl -fsSL https://musicQ.hshim.dev/install.sh | bash
+bash scripts/install-macos.sh
 ```
 
-Node.js 24 이상·npm·Python 3.11–3.12를 먼저 준비하세요. 설치 스크립트는 `/downloads/musicq-server.tar.gz`와 체크섬 파일을 내려받아 SHA-256을 확인한 뒤 macOS 설치를 실행합니다. 기존 설정과 데이터는 유지합니다. 소스 저장소에서도 `bash scripts/install-macos.sh`로 설치할 수 있습니다.
+화면을 빌드하고 서버와 함께 `~/Library/Application Support/musicQ/server`에 설치합니다. 사용자 LaunchAgent를 등록하여 로그인 시 자동 실행합니다. 관리자 권한은 필요하지 않습니다.
 
-[서버 패키지](https://musicQ.hshim.dev/downloads/musicq-server.tar.gz) · [SHA-256](https://musicQ.hshim.dev/downloads/musicq-server.tar.gz.sha256) · [버전](https://musicQ.hshim.dev/downloads/version.json)
-
-파일만 받으려면 아래처럼 실행합니다. 대상 폴더는 새 경로를 지정하세요.
-
-```sh
-curl -fsSL https://musicQ.hshim.dev/install.sh | bash -s -- --download-only ./musicq-server
-```
-
-소스를 `~/Library/Application Support/musicQ/server`에 복사하고 사용자 LaunchAgent를 등록합니다. 로그인 시 서버가 자동 실행됩니다. 관리자 권한이 필요하지 않습니다. 기본 바인딩은 `127.0.0.1:4310`입니다.
+설치 후 [http://127.0.0.1:4310](http://127.0.0.1:4310)을 여세요.
 
 - 설정: `~/Library/Application Support/musicQ/server.env`
-- 음악·모델·연결 키: `~/Library/Application Support/musicQ/data/`
+- 음악·모델·DB: `~/Library/Application Support/musicQ/data/`
 - 로그: `~/Library/Application Support/musicQ/logs/`
 - 재시작: `launchctl kickstart -k gui/$(id -u)/local.musicq.server`
-- 업데이트: 수정된 저장소에서 설치 스크립트를 다시 실행합니다. 데이터·기존 설정은 유지합니다.
+- 업데이트: 최신 소스에서 설치 스크립트를 다시 실행합니다. 기존 설정·데이터는 유지합니다.
 - 자동 실행 해제: `bash "$HOME/Library/Application Support/musicQ/uninstall.sh"`. 데이터는 보존합니다.
 
-다른 PC의 브라우저에서 접속할 때는 설정의 `MUSICQ_HOST=0.0.0.0`과 허용 Origin을 지정하고 macOS 방화벽을 설정해야 합니다.
+이전 설치의 `MUSICQ_TOKEN`·`MUSICQ_ORIGINS` 설정과 `data/token` 파일은 더 이상 사용하지 않습니다. 기존 음악과 모델은 그대로 사용할 수 있습니다.
 
 ## Docker 설치형
+
+소스 저장소 또는 빌드된 릴리즈 패키지에서 실행합니다.
 
 ```sh
 docker compose up -d --build
 docker compose logs server
 ```
 
-로그의 연결 키를 입력합니다. 음악·DB·모델은 `musicq-data` 볼륨에 보존됩니다. `docker compose down`은 데이터를 지우지 않으며, **`down -v`는 데이터를 삭제**합니다. 기본 포트는 호스트의 loopback에만 노출됩니다. LAN에서 직접 접속하려면 `compose.yaml`의 포트를 `4310:4310`으로 바꾸고 방화벽을 설정합니다.
+이미지에 프론트가 포함되며 [http://127.0.0.1:4310](http://127.0.0.1:4310)에서 사용합니다. 음악·DB·모델은 `musicq-data` 볼륨에 보존됩니다. `docker compose down`은 데이터를 지우지 않으며, `down -v`는 데이터를 삭제합니다.
 
-## Vercel 웹 배포
+## 다른 기기에서 접속
 
-저장소 루트의 `vercel.json`이 웹만 정적 배포하도록 설정합니다. 로컬 서버·SQLite·모델은 서버 PC에서 실행합니다.
+기본 설정은 서버 PC에서만 접속 가능한 `127.0.0.1:4310`입니다.
 
-Vercel에서 저장소를 Import한 뒤 아래 설정을 사용하세요.
+- macOS·직접 실행: 설정 파일의 `MUSICQ_HOST=0.0.0.0`을 지정하고 서버를 재시작합니다.
+- Docker: `compose.yaml`의 포트를 `4310:4310`으로 변경합니다.
 
-| 항목 | 설정 |
-| --- | --- |
-| Root Directory | 저장소 루트 (`.`), **`packages/web`로 변경하지 않음** |
-| Framework Preset | Vite |
-| Node.js Version | 26.x (로컬 검증 버전, 프로젝트는 Node.js 24 이상 지원) |
-| Install Command | `npm ci --workspace @musicq/web --include-workspace-root=false --include=dev` |
-| Build Command | `npm run build --workspace @musicq/web` |
-| Output Directory | `packages/web/dist` |
-| Environment Variables | 웹 배포에는 필요 없음 |
+같은 네트워크의 브라우저에서 `http://서버의-IP:4310`을 여세요. macOS 방화벽에서 해당 포트 접근을 허용해야 할 수 있습니다. 화면·API·WebSocket이 같은 주소를 사용하므로 별도 Origin 목록이나 로컬 네트워크 접근 권한 설정은 필요하지 않습니다.
 
-설치·빌드·출력 경로는 `vercel.json`에서 지정하므로 Dashboard에서 별도로 덮어쓸 필요가 없습니다. Vercel에서 Root Directory를 자동으로 `packages/web`로 잡았다면 저장소 루트로 되돌리세요. 웹 의존성만 설치하며, Python이나 생성 모델을 빌드 머신에 설치하지 않습니다. 빌드 시 `scripts/package-server.mjs`가 서버 소스·설치 스크립트·Docker 구성을 압축해 정적 다운로드 파일을 생성합니다. SPA 새로고침 경로와 루트 기준 정적 자산 경로도 설정되어 있습니다.
+연결 키가 없는 단일 사용자 서버입니다. 접근 가능한 기기에서 음악·모델을 관리할 수 있으므로 LAN 공유는 신뢰하는 네트워크에서 사용하세요. 서버는 다른 사이트에서 오는 API·WebSocket 요청을 거부합니다.
 
-Git 연결 대신 CLI로 배포할 때도 저장소 **루트**에서 실행하세요.
+## 개발과 릴리즈
 
 ```sh
-npx vercel
-# Preview 확인 후 Production 배포
-npx vercel --prod
+npm ci
+npm run dev
 ```
 
-CLI의 로그인·프로젝트 연결은 본인 Vercel 계정으로 진행합니다. `.vercelignore`는 CLI 업로드에서 `.musicq`, 모델·음악·DB, `.env`와 캐시를 제외합니다. 서버 소스와 패키징 스크립트는 설치 파일 생성에 사용하고, 생성된 패키지와 웹 정적 파일만 배포합니다. Git 배포에서는 `.gitignore`로 로컬 데이터와 비밀값이 커밋되지 않도록 유지하세요. `MUSICQ_TOKEN`, `HF_TOKEN`은 로컬 서버 설정이며 Vercel에 입력하지 않습니다. 서버 주소와 연결 키는 사용자가 웹에서 입력하고 해당 브라우저에 저장합니다.
-
-다른 정적 호스팅에 배포하려면 저장소 루트에서 `npm run build`를 실행하고 `packages/web/dist/`를 배포하세요.
-
-공식 문서: [Vercel의 Vite 설정](https://vercel.com/docs/frameworks/frontend/vite), [프로젝트 설정](https://vercel.com/docs/project-configuration/vercel-json).
-
-### 배포된 웹과 로컬 서버 연결
-
-공개 컨트롤 패널은 [https://musicQ.hshim.dev](https://musicQ.hshim.dev)입니다. **신규 설치에는 이 Origin이 기본 포함됩니다.** 이전 설치를 업데이트하는 경우 **서버 PC의** `.env`(설치형은 `server.env`)를 다음처럼 설정하고 서버를 재시작합니다. Origin은 브라우저가 보내는 소문자 호스트(`https://musicq.hshim.dev`)로 지정합니다.
-
-```dotenv
-MUSICQ_ORIGINS=https://musicq.hshim.dev,http://localhost:5173,http://127.0.0.1:5173
-```
-
-Preview 배포는 도메인이 달라집니다. 사용할 Preview 주소도 정확히 추가해야 합니다. `*.vercel.app` 같은 전체 와일드카드를 허용하지 않습니다. 커스텀 도메인을 쓰면 해당 웹 도메인을 추가하세요. 브라우저 저장 정보는 원점별로 분리되므로 Preview·Production·커스텀 도메인 간에는 최초 연결 설정을 각각 한 번 해야 합니다.
-
-HTTPS 컨트롤 패널에서도 **로컬 HTTP 서버**에 연결할 수 있습니다. 지원 주소는 `localhost`·`*.localhost`, `127.x.x.x`·`::1`, 사설 IPv4(`10.x`, `172.16–31.x`, `192.168.x`), 링크 로컬·IPv6 사설 주소와 `.local` 호스트입니다. 일반 공개 HTTP 주소와 임의의 DNS 별칭은 허용하지 않습니다. `localhost`는 브라우저를 실행한 컴퓨터를 뜻합니다. 다른 기기에서 서버에 연결하려면 서버의 LAN IP와 바인딩·방화벽 설정을 확인하세요.
-
-최신 Chrome 등 지원 브라우저에서 최초 연결 시 **연결**을 누르고 로컬 네트워크/루프백 접근 권한을 허용하세요. 권한 상태를 확인할 수 있고 이미 허용되어 있으면 저장된 정보로 자동 연결합니다. 권한 확인 API를 지원하지 않는 브라우저는 직접 연결 버튼을 눌러 시도합니다. 차단한 권한은 사이트 설정에서 다시 허용해야 합니다. 지원하지 않는 브라우저에서는 HTTPS 역방향 프록시를 사용하세요.
-
-API에는 `targetAddressSpace`를 지정하고, WebSocket은 브라우저가 인식하는 로컬 주소의 `ws://`를 사용합니다. 로컬 HTTP 음악은 권한을 받은 fetch로 읽어 blob URL로 재생하므로 브라우저의 HTTP 미디어 자동 업그레이드를 피합니다. 이 경우 파일 로딩을 마친 뒤 재생하며, HTTPS 음악은 기존 Range 스트리밍을 유지합니다. CORS와 연결 키 인증은 동일하게 적용합니다.
-
-참고: [Chrome 로컬 네트워크 접근](https://developer.chrome.com/docs/modern-web-guidance/guides/security/local-network-access).
-
-외부 HTTPS 서버 또는 HTTPS 프록시를 사용할 때:
-
-권장 구성:
-
-1. 서버 PC에 접근 가능한 DNS와 TLS 역방향 프록시를 준비합니다. [Caddy 예시](Caddyfile.example)를 참고하세요. 같은 원점의 `/ws` 업그레이드와 `/api/audio/` Range 요청을 전달해야 합니다.
-2. 서버 `MUSICQ_ORIGINS=https://실제-웹-호스팅-주소`를 설정합니다. 여러 주소는 쉼표로 구분합니다. CORS와 WebSocket Origin을 모두 검사합니다.
-3. 웹에 `https://실제-서버-주소`와 연결 키를 입력합니다. 브라우저가 로컬 네트워크 접근 권한을 물으면 허용합니다. 브라우저별 네트워크 정책도 적용됩니다.
-4. 서버 URL의 경로 접두어는 지원하지 않습니다. 서버 전용 호스트의 루트에 프록시하세요.
-
-공개망에서는 TLS를 사용하고 연결 키를 보호하세요. 웹의 연결 키는 요청대로 브라우저 localStorage에 저장되므로 공유 PC에서는 연결 정보를 지워야 합니다. 음악과 큐는 브라우저에 저장하지 않습니다. 브라우저에는 주소·키·생성 폼만 저장합니다. 연결 해제는 저장된 주소와 키를 삭제하지 않습니다.
-
-## 구조와 검증
-
-```text
-packages/server/src/
-  app.mjs             HTTP / WebSocket / signed audio streaming
-  service.mjs         persistent queue / library / playback
-  planner.mjs         generation intent and score planning
-  models.mjs          catalog / install process / registry
-  engine.mjs          cancellable subprocess adapter
-  musicgen.py         offline MusicGen inference
-  install-model.py    isolated runtime and model download
-  synth.mjs           test-only synthesizer
-packages/web/src/     React control panel
-scripts/              macOS LaunchAgent install / uninstall
-```
+개발 화면: [http://127.0.0.1:5173](http://127.0.0.1:5173). Vite의 `/api`, `/health`, `/ws` 프록시가 서버 `127.0.0.1:4310`으로 요청을 전달합니다. 이 포트가 프록시 기본값이므로 개발 시 서버 포트는 유지하세요.
 
 ```sh
 npm run check
 npm test
 npm run build
+npm run package:server
 ```
 
-통합 테스트는 인증·Origin, 큐 영속성·순서, 생성·중단, WAV Range, 검색·필터, 재생성, WebSocket, 모델 설치 생명주기, 다중 검색 조건의 AND/OR·범위 평가를 검증합니다. 웹 테스트는 저장된 연결 정보의 복구와 URL 검증을 확인합니다. 모델 설치 테스트는 다운로드 대신 테스트 실행기를 사용합니다. Docker 이미지 빌드와 컨테이너 내 테스트 생성·서명된 WAV Range 전송까지 확인했습니다. Python 3.14.7 / Transformers 4.57.6의 설치된 MusicGen Small로 CPU 추론을 수행해 32 kHz, 약 4.94초 WAV 생성과 유효한 오디오 샘플을 확인했습니다. 다른 대형 모델의 실제 추론과 macOS LaunchAgent 등록은 별도 환경 검증이 필요합니다.
+릴리즈 패키지와 SHA-256·버전 파일은 `releases/`에 생성됩니다. 화면 빌드·서버 소스·macOS 설치 스크립트·Docker 구성이 포함되며, 음악·모델·환경 파일은 포함하지 않습니다. 압축 해제 후 macOS는 `bash scripts/install-macos.sh`, Docker는 `docker compose up -d --build`로 실행합니다.
 
-현재 단일 사용자·단일 서버 프로세스용입니다. 여러 서버 인스턴스가 같은 데이터 디렉터리를 공유하지 않도록 하세요. 자동 모델 발견은 musicQ가 설치·등록한 음악 모델에 한정합니다. 임의의 Ollama 모델이나 컴퓨터 전체 파일은 스캔하지 않습니다.
+프론트·서버를 각각 호스팅하는 설정은 제거했습니다. 기존 외부 호스팅 프로젝트의 배포 중단·삭제와 DNS 정리는 해당 서비스 관리 화면에서 별도로 진행합니다.
 
-UI direction uses [unslop by Damir Sokolovsky (@heydamir)](https://heydamir.design/unslop), CC BY 4.0. No skill source is bundled.
+서버는 단일 프로세스로 실행하세요. 여러 인스턴스가 같은 데이터 디렉터리를 공유하지 않도록 합니다. 관리형 모델과 등록한 음악 모델만 표시하며 컴퓨터 전체를 스캔하지 않습니다.
 
-참고: [Node.js SQLite](https://nodejs.org/api/sqlite.html), [Vite 정적 배포](https://vite.dev/guide/static-deploy), [MusicGen](https://huggingface.co/facebook/musicgen-small).
+UI direction uses [unslop by Damir Sokolovsky](https://heydamir.design/unslop), CC BY 4.0.

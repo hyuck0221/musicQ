@@ -1,4 +1,3 @@
-import { loadMediaSource } from "./mediaSource";
 import LibraryFilters, { validFilter } from "./LibraryFilters";
 import type { FilterRule } from "./LibraryFilters";
 import TrackList from "./TrackList";
@@ -23,13 +22,12 @@ import {
   Settings2,
   Square,
   Trash2,
-  Unplug,
   Volume2,
   X,
 } from "lucide-react";
 import { useStudio } from "./useStudio";
 import { initialDraft, persist, scoreLabels, stored, time } from "./types";
-import type { Connection, Draft, Job, Model, Scores, Track } from "./types";
+import type { Draft, Job, Model, Scores, Track } from "./types";
 
 type View = "studio" | "library" | "models";
 const genres = [
@@ -52,10 +50,9 @@ const labels = {
 };
 export default function App() {
   const studio = useStudio();
-  const { state, status, api, connection, clockOffset } = studio;
+  const { state, status, api, clockOffset } = studio;
   const online = status === "online";
   const [view, setView] = useState<View>("studio");
-  const [connectOpen, setConnectOpen] = useState(!studio.autoConnect);
   const [draft, setDraft] = useState<Draft>(() => ({
     ...initialDraft,
     ...stored<Partial<Draft>>("musicq.draft", {}),
@@ -75,7 +72,6 @@ export default function App() {
   const [now, setNow] = useState(Date.now());
   const audio = useRef<HTMLAudioElement>(null);
   const [audioBlocked, setAudioBlocked] = useState(false);
-  const [audioSource, setAudioSource] = useState<string | null>(null);
   const [audioReload, setAudioReload] = useState(0);
   const [pending, setPending] = useState<Set<string>>(new Set());
   const selectedTrack = state.tracks.find((t) => t.id === state.player.trackId);
@@ -89,13 +85,6 @@ export default function App() {
   useEffect(() => {
     persist("musicq.draft", draft);
   }, [draft]);
-  useEffect(() => {
-    if (online) setConnectOpen(false);
-  }, [online]);
-  useEffect(() => {
-    if ((status === "offline" || status === "permission") && studio.error)
-      setConnectOpen(true);
-  }, [status, studio.error]);
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 500);
     return () => clearInterval(t);
@@ -191,33 +180,9 @@ export default function App() {
     : 0;
   const mediaUrl =
     online && selectedTrack && state.player.target === "browser"
-      ? connection.url + selectedTrack.mediaPath
+      ? new URL(selectedTrack.mediaPath, location.origin).href
       : null;
-  useEffect(() => {
-    const controller = new AbortController();
-    let active = true;
-    let release = () => {};
-    setAudioSource(null);
-    if (mediaUrl) {
-      void loadMediaSource(mediaUrl, location.protocol, controller.signal)
-        .then((source) => {
-          if (!active) {
-            source.release();
-            return;
-          }
-          release = source.release;
-          setAudioSource(source.src);
-        })
-        .catch((error) => {
-          if (active && !controller.signal.aborted) setNotice(error.message);
-        });
-    }
-    return () => {
-      active = false;
-      controller.abort();
-      release();
-    };
-  }, [mediaUrl, audioReload]);
+  const audioSource = mediaUrl;
   // The server owns transport state. Browser audio is a streaming output only.
   useEffect(() => {
     const a = audio.current;
@@ -267,7 +232,7 @@ export default function App() {
       cancelled = true;
       a.removeEventListener("loadedmetadata", sync);
     };
-  }, [online, selectedTrack, state.player, audioSource, clockOffset]);
+  }, [online, selectedTrack, state.player, audioSource, clockOffset, audioReload]);
   const playTrack = (track: Track) => {
     setAudioReload((value) => value + 1);
     void act(() =>
@@ -399,21 +364,10 @@ export default function App() {
             </button>
           ))}
         </nav>
-        <button
-          aria-label="서버 연결 설정"
-          className="connection-status"
-          onClick={() => setConnectOpen(true)}
-        >
+        <div className="server-status" role="status" title={studio.error || "서버 실행 중"}>
           <span className={"status-dot " + (online ? "online" : "")} />
-          <span>
-            {online
-              ? new URL(connection.url).host
-              : status === "connecting" || status === "reconnecting"
-                ? "연결 중"
-                : "서버 연결"}
-          </span>
-          <Settings2 />
-        </button>
+          <span>{online ? "실행 중" : status === "reconnecting" ? "다시 연결 중" : "시작 중"}</span>
+        </div>
       </header>
       <main>
         <div className="page-heading">
@@ -471,7 +425,7 @@ export default function App() {
                       aria-label="생성 모델"
                     >
                       {!installed.length && (
-                        <option value="demo">서버 연결 후 선택</option>
+                        <option value="demo">모델 불러오는 중</option>
                       )}
                       {installed.map((m) => (
                         <option key={m.id} value={m.id}>
@@ -1084,20 +1038,6 @@ export default function App() {
           </button>
         </div>
       )}
-      {connectOpen && (
-        <ConnectionDialog
-          initial={connection}
-          online={online}
-          status={status}
-          error={studio.error}
-          onClose={() => setConnectOpen(false)}
-          onConnect={studio.connect}
-          onDisconnect={() => {
-            studio.disconnect();
-            studio.setError("");
-          }}
-        />
-      )}
       {detail && (
         <Dialog title={detail.title} onClose={() => setDetail(null)}>
           <div className="detail-meta">
@@ -1193,85 +1133,5 @@ function Dialog({
       </div>
       {children}
     </dialog>
-  );
-}
-function ConnectionDialog({
-  initial,
-  online,
-  status,
-  error,
-  onClose,
-  onConnect,
-  onDisconnect,
-}: {
-  initial: Connection;
-  online: boolean;
-  status: string;
-  error: string;
-  onClose: () => void;
-  onConnect: (c: Connection) => void;
-  onDisconnect: () => void;
-}) {
-  const [value, setValue] = useState(initial);
-  return (
-    <Dialog title="서버 연결" onClose={onClose}>
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          onConnect(value);
-        }}
-      >
-        <label className="field">
-          서버 주소
-          <input
-            autoFocus
-            type="url"
-            required
-            placeholder="http://192.168.0.10:4310"
-            value={value.url}
-            onChange={(e) => setValue({ ...value, url: e.target.value })}
-          />
-        </label>
-        <label className="field">
-          연결 키
-          <input
-            type="password"
-            required
-            autoComplete="current-password"
-            placeholder="서버 실행 화면의 연결 키"
-            value={value.token}
-            onChange={(e) => setValue({ ...value, token: e.target.value })}
-          />
-        </label>
-        {error && (
-          <p
-            className={
-              status === "permission" ? "permission-note" : "error-text"
-            }
-            role={status === "permission" ? "status" : "alert"}
-          >
-            {error}
-          </p>
-        )}
-        <div className="dialog-actions">
-          {online && (
-            <button type="button" className="secondary" onClick={onDisconnect}>
-              <Unplug />
-              연결 해제
-            </button>
-          )}
-          <button className="primary" disabled={status === "connecting"}>
-            {status === "connecting" || status === "reconnecting" ? (
-              <LoaderCircle className="spin" />
-            ) : (
-              <>
-                <span>연결</span>
-                <ChevronRight />
-              </>
-            )}
-          </button>
-        </div>
-      </form>
-    </Dialog>
   );
 }

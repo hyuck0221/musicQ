@@ -1,55 +1,35 @@
 import { libraryQuerySchema, queryLibrary } from "./library-query.mjs";
 import Fastify from "fastify";
-import cors from "@fastify/cors";
+import staticFiles from "@fastify/static";
+import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import websocket from "@fastify/websocket";
 import { z } from "zod";
-import { timingSafeEqual, createHmac } from "node:crypto";
-import { createReadStream, statSync } from "node:fs";
+import { createReadStream, statSync, existsSync } from "node:fs";
 import { MusicService } from "./service.mjs";
 
-const safeEqual = (a, b) =>
-  typeof a === "string" &&
-  typeof b === "string" &&
-  Buffer.byteLength(a) === Buffer.byteLength(b) &&
-  timingSafeEqual(Buffer.from(a), Buffer.from(b));
 export async function createApp(config) {
   const app = Fastify({ logger: config.logger ?? false, bodyLimit: 32768 });
   const service = new MusicService(config);
   app.decorate("music", service);
   const sockets = new Set();
-  const sign = (id, expires) =>
-    createHmac("sha256", config.token).update(`${id}:${expires}`).digest("hex");
-  const snapshot = () => {
-    const state = service.snapshot();
-    const expires = Math.floor(Date.now() / 86400000) * 86400 + 172800;
-    return {
-      ...state,
-      tracks: state.tracks.map((t) => ({
-        ...t,
-        mediaPath: `/api/audio/${t.id}?expires=${expires}&signature=${sign(t.id, expires)}`,
-      })),
-    };
-  };
-  await app.register(cors, {
-    origin: config.origins,
-    methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Authorization", "Content-Type"],
+  const snapshot = () => ({
+    ...service.snapshot(),
+    tracks: service.tracks.map((track) => ({
+      ...track,
+      mediaPath: `/api/audio/${track.id}`,
+    })),
   });
   await app.register(websocket, { options: { maxPayload: 4096 } });
+  // No credentials: only the origin serving this control panel may use the API.
   app.addHook("onRequest", async (req, reply) => {
-    if (req.headers.origin && !config.origins.includes(req.headers.origin))
-      return reply.code(403).send({
-        error: "허용되지 않은 웹 주소입니다. MUSICQ_ORIGINS를 확인해 주세요",
-      });
-    if (
-      req.method === "OPTIONS" ||
-      req.url === "/health" ||
-      req.url.startsWith("/ws") ||
-      req.url.startsWith("/api/audio/")
-    )
-      return;
-    if (!safeEqual(req.headers.authorization, `Bearer ${config.token}`))
-      return reply.code(401).send({ error: "연결 키가 일치하지 않습니다" });
+    if (!/^\/(api|ws)(\/|\?|$)/.test(req.url)) return;
+    const origin = req.headers.origin;
+    const sameOrigin = `${req.protocol}://${req.host}`;
+    if (origin && origin !== sameOrigin)
+      return reply.code(403).send({ error: "같은 서버의 화면에서 요청해 주세요" });
+    if (req.headers["sec-fetch-site"] === "cross-site")
+      return reply.code(403).send({ error: "다른 사이트의 요청은 허용하지 않습니다" });
   });
   app.setErrorHandler((error, req, reply) => {
     const message =
@@ -133,15 +113,6 @@ export async function createApp(config) {
     return { ok: true };
   });
   app.get("/api/audio/:id", (req, reply) => {
-    const { expires, signature } = req.query;
-    if (
-      !/^\d{10}$/.test(expires ?? "") ||
-      Number(expires) < Date.now() / 1000 ||
-      !safeEqual(signature, sign(req.params.id, expires))
-    )
-      return reply
-        .code(401)
-        .send({ error: "미디어 주소가 만료되었습니다. 다시 연결해 주세요" });
     const path = service.audioPath(req.params.id),
       size = statSync(path).size;
     reply
@@ -179,12 +150,9 @@ export async function createApp(config) {
     return reply.header("Content-Length", size).send(createReadStream(path));
   });
   app.get("/ws", { websocket: true }, (socket) => {
-    let authenticated = false;
     let alive = true;
-    const authTimeout = setTimeout(
-      () => socket.close(4001, "Authentication required"),
-      5000,
-    );
+    sockets.add(socket);
+    socket.send(JSON.stringify(snapshot()));
     const heartbeat = setInterval(() => {
       if (!alive) return socket.terminate();
       alive = false;
@@ -193,22 +161,7 @@ export async function createApp(config) {
     socket.on("pong", () => {
       alive = true;
     });
-    socket.on("message", (data) => {
-      try {
-        if (authenticated) return;
-        const input = JSON.parse(data.toString());
-        if (!safeEqual(input.token, config.token))
-          return socket.close(4001, "Invalid token");
-        authenticated = true;
-        clearTimeout(authTimeout);
-        sockets.add(socket);
-        socket.send(JSON.stringify(snapshot()));
-      } catch {
-        socket.close(4000, "Invalid message");
-      }
-    });
     socket.on("close", () => {
-      clearTimeout(authTimeout);
       clearInterval(heartbeat);
       sockets.delete(socket);
     });
@@ -227,5 +180,29 @@ export async function createApp(config) {
     for (const s of sockets) s.close();
     await service.close();
   });
+  const webRoot = config.webRoot ?? fileURLToPath(new URL("../web/", import.meta.url));
+  if (existsSync(join(webRoot, "index.html"))) {
+    await app.register(staticFiles, {
+      root: webRoot,
+      index: "index.html",
+      dotfiles: "ignore",
+      setHeaders(reply, path) {
+        reply.header("Cache-Control", path.endsWith(".html")
+          ? "no-cache" : path.includes("/assets/")
+            ? "public, max-age=31536000, immutable" : "no-cache");
+      },
+    });
+    app.setNotFoundHandler((req, reply) => {
+      const path = req.url.split("?")[0];
+      if (["GET", "HEAD"].includes(req.method) &&
+          !/^\/(api|ws|health|assets)(\/|$)/.test(path) &&
+          !path.split("/").pop().includes("."))
+        return reply.header("Cache-Control", "no-cache").sendFile("index.html");
+      return reply.code(404).send({ error: "찾을 수 없습니다" });
+    });
+  } else {
+    app.get("/", (_req, reply) => reply.code(503).type("text/plain; charset=utf-8")
+      .send("화면을 먼저 빌드해 주세요: npm run build"));
+  }
   return app;
 }

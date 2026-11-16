@@ -11,7 +11,7 @@ artifacts/
 __pycache__/
 *.pyc
 
-.vercel/
 
-# Built from server source during web deployment
-packages/web/public/downloads/
+# Generated control panel and release archives
+packages/server/web/
+releases/

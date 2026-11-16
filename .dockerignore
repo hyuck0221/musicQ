@@ -6,3 +6,10 @@ node_modules
 .musicq
 artifacts
 packages/web/dist
+
+releases
+packages/web/public/downloads
+**/node_modules
+**/__pycache__
+**/*.pyc
+**/*.tsbuildinfo

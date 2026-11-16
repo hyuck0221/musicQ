@@ -78,7 +78,6 @@ export type State = {
   player: Player;
   serverTime: number;
 };
-export type Connection = { url: string; token: string };
 export const initialDraft: Draft = {
   title: "",
   mode: "guided",

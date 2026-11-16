@@ -14,7 +14,8 @@
     "build": "npm run build -w @musicq/web",
     "check": "npm run check -w @musicq/web && npm run check -w @musicq/server",
     "test": "npm run test -w @musicq/server && npm run test -w @musicq/web",
-    "package:server": "node scripts/package-server.mjs"
+    "package:server": "npm run build && node scripts/package-server.mjs",
+    "start": "npm run start -w @musicq/server"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"
