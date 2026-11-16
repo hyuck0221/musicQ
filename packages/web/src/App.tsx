@@ -345,8 +345,8 @@ export default function App() {
             setView("studio");
           }}
         >
+          <span className="brand-name" aria-hidden="true">music</span>
           <img className="brand-logo" src="/logo-96.png" alt="" width="36" height="36" />
-          <span className="brand-name" aria-hidden="true">music<span>Q</span></span>
         </a>
         <nav aria-label="주 메뉴">
           {(
