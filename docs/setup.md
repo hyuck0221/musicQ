@@ -79,11 +79,13 @@ Stable Audio 3는 gated 모델입니다. [모델](https://huggingface.co/stabili
 
 ## macOS 설치형
 
-소스 저장소에서 다음 명령을 실행합니다.
+저장소를 직접 복제하지 않고 GitHub 주소로 바로 설치합니다. Node.js 24 이상·npm·Python을 먼저 준비하세요.
 
 ```sh
-bash scripts/install-macos.sh
+curl -fsSL https://raw.githubusercontent.com/hyuck0221/musicQ/master/install.sh | bash
 ```
+
+설치 스크립트는 GitHub의 `master` 브랜치를 임시 폴더에 내려받아 빌드·설치한 뒤 임시 파일을 정리합니다. Git 명령은 필요하지 않습니다. 소스 저장소나 릴리즈 파일을 이미 받은 경우 `bash scripts/install-macos.sh`로 설치할 수도 있습니다.
 
 화면을 빌드하고 서버와 함께 `~/Library/Application Support/musicQ/server`에 설치합니다. 사용자 LaunchAgent를 등록하여 로그인 시 자동 실행합니다. 관리자 권한은 필요하지 않습니다.
 
@@ -93,7 +95,7 @@ bash scripts/install-macos.sh
 - 음악·모델·DB: `~/Library/Application Support/musicQ/data/`
 - 로그: `~/Library/Application Support/musicQ/logs/`
 - 재시작: `launchctl kickstart -k gui/$(id -u)/local.musicq.server`
-- 업데이트: 최신 소스에서 설치 스크립트를 다시 실행합니다. 기존 설정·데이터는 유지합니다.
+- 업데이트: 위 GitHub 설치 명령을 다시 실행합니다. 기존 설정·데이터는 유지합니다.
 - 자동 실행 해제: `bash "$HOME/Library/Application Support/musicQ/uninstall.sh"`. 데이터는 보존합니다.
 
 이전 설치의 `MUSICQ_TOKEN`·`MUSICQ_ORIGINS` 설정과 `data/token` 파일은 더 이상 사용하지 않습니다. 기존 음악과 모델은 그대로 사용할 수 있습니다.

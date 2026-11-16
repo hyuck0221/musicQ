@@ -20,24 +20,23 @@
 
 ## 시작하기
 
-```sh
-git clone https://github.com/hyuck0221/musicQ.git
-cd musicQ
-```
-
 ### macOS
 
 Node.js **24 이상**, npm, Python **3.11–3.12**를 준비한 뒤 설치합니다. 로그인 시 자동 실행됩니다.
 
 ```sh
-bash scripts/install-macos.sh
+curl -fsSL https://raw.githubusercontent.com/hyuck0221/musicQ/master/install.sh | bash
 ```
+
+GitHub에서 소스를 내려받아 화면과 서버를 함께 빌드·설치합니다. 업데이트할 때도 같은 명령을 사용합니다.
 
 설치 후 [http://127.0.0.1:4310](http://127.0.0.1:4310)을 여세요. 주소 입력이나 연결 키 없이 바로 사용할 수 있습니다.
 
 ### Docker
 
 ```sh
+git clone https://github.com/hyuck0221/musicQ.git
+cd musicQ
 docker compose up -d --build
 ```
 
@@ -46,6 +45,8 @@ docker compose up -d --build
 ### 직접 실행
 
 ```sh
+git clone https://github.com/hyuck0221/musicQ.git
+cd musicQ
 npm ci
 npm run build
 npm start
@@ -65,6 +66,8 @@ npm start
 Stable Audio 3는 Hugging Face 접근 승인과 서버 `HF_TOKEN` 설정이 필요합니다. 모델별 메모리 요구사항·라이선스는 [가이드](docs/setup.md#모델)에서 확인하세요. 기본 테스트 신시사이저는 AI 모델 설치 없이 동작을 확인하는 용도입니다.
 
 ## 개발
+
+소스 저장소에서 실행합니다.
 
 ```sh
 npm ci
