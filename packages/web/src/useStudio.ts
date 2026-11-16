@@ -1,7 +1,16 @@
 import { normalizeConnection, readSavedConnection } from "./connection";
+import {
+  authorizeServer,
+  localPermissionMessage,
+  needsLocalPermission,
+  queryServerPermission,
+  serverConnectionError,
+  serverRequestOptions,
+} from "./localNetwork";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { emptyState, persist } from "./types";
 import type { Connection, State } from "./types";
+
 export function useStudio() {
   const [saved] = useState(() => {
     try {
@@ -15,53 +24,115 @@ export function useStudio() {
   );
   const [state, setState] = useState<State>(emptyState);
   const [status, setStatus] = useState<
-    "offline" | "connecting" | "online" | "reconnecting"
+    "offline" | "connecting" | "online" | "reconnecting" | "permission"
   >(saved ? "connecting" : "offline");
   const [error, setError] = useState("");
-  const [session, setSession] = useState<Connection | null>(saved);
+  const [session, setSession] = useState<Connection | null>(null);
   const [clockOffset, setClockOffset] = useState(0);
   const current = useRef(session);
   current.current = session;
+  const attempt = useRef(0);
+  const pending = useRef<AbortController | null>(null);
   const api = useCallback(
     async <T>(path: string, method = "GET", body?: unknown): Promise<T> => {
       const c = current.current;
       if (!c) throw new Error("서버에 연결해 주세요");
-      const res = await fetch(c.url + path, {
-        method,
-        headers: {
-          Authorization: `Bearer ${c.token}`,
-          ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
-        },
-        body: body === undefined ? undefined : JSON.stringify(body),
-        signal: AbortSignal.timeout(12000),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "서버 요청에 실패했습니다");
+      let response: Response;
+      try {
+        response = await fetch(
+          c.url + path,
+          serverRequestOptions(c.url, {
+            method,
+            headers: {
+              Authorization: `Bearer ${c.token}`,
+              ...(body !== undefined
+                ? { "Content-Type": "application/json" }
+                : {}),
+            },
+            body: body === undefined ? undefined : JSON.stringify(body),
+            signal: AbortSignal.timeout(12000),
+          }),
+        );
+      } catch {
+        throw new Error(serverConnectionError(c.url));
+      }
+      const data = await response.json();
+      if (!response.ok)
+        throw new Error(data.error || "서버 요청에 실패했습니다");
       return data;
     },
     [],
   );
-  const connect = (input: Connection) => {
+  useEffect(() => {
+    if (!saved) return;
+    let cancelled = false;
+    const id = ++attempt.current;
+    void queryServerPermission(
+      saved.url,
+      location.protocol,
+      navigator.permissions,
+    ).then((permission) => {
+      if (cancelled || id !== attempt.current) return;
+      if (permission === "granted") setSession(saved);
+      else {
+        setStatus("permission");
+        setError(localPermissionMessage(permission));
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [saved]);
+  const connect = async (input: Connection) => {
+    const id = ++attempt.current;
+    pending.current?.abort();
+    const controller = new AbortController();
+    pending.current = controller;
+    const timeout = setTimeout(() => controller.abort(), 30000);
+    let validated = false;
     try {
       const c = normalizeConnection(input, location.protocol);
+      validated = true;
       setState(emptyState);
       setError("");
       setStatus("connecting");
       setConnection(c);
-      setSession(c);
-    } catch (e) {
-      setError((e as Error).message);
+      setSession(null);
+      await authorizeServer(
+        c.url,
+        location.protocol,
+        controller.signal,
+        navigator.permissions,
+      );
+      if (id === attempt.current && !controller.signal.aborted) setSession(c);
+      else if (id === attempt.current)
+        throw new Error("연결 시간이 초과되었습니다. 다시 연결해 주세요");
+    } catch (failure) {
+      if (id === attempt.current) {
+        if (validated) setStatus("offline");
+        setError((failure as Error).message);
+      }
+    } finally {
+      clearTimeout(timeout);
+      if (pending.current === controller) pending.current = null;
     }
   };
   useEffect(() => {
     if (!session) return;
     let stopped = false,
-      ws: WebSocket,
+      socket: WebSocket | undefined,
       timer: ReturnType<typeof setTimeout>,
-      attempt = 0;
+      retries = 0;
     const open = () => {
       if (stopped) return;
-      ws = new WebSocket(session.url.replace(/^http/, "ws") + "/ws");
+      try {
+        socket = new WebSocket(session.url.replace(/^http/, "ws") + "/ws");
+      } catch {
+        setStatus("offline");
+        setError(serverConnectionError(session.url));
+        return;
+      }
+      const ws = socket;
       ws.onopen = () => {
         if (stopped) {
           ws.close();
@@ -72,17 +143,17 @@ export function useStudio() {
       ws.onmessage = (event) => {
         if (stopped) return;
         try {
-          const s = JSON.parse(event.data) as State;
-          if (!Array.isArray(s.jobs) || !Array.isArray(s.models))
+          const next = JSON.parse(event.data) as State;
+          if (!Array.isArray(next.jobs) || !Array.isArray(next.models))
             throw new Error("musicQ 서버 응답이 아닙니다");
-          setClockOffset(s.serverTime - Date.now());
-          setState(s);
+          setClockOffset(next.serverTime - Date.now());
+          setState(next);
           setStatus("online");
           setError("");
-          attempt = 0;
+          retries = 0;
           persist("musicq.connection", session);
-        } catch (e) {
-          setError((e as Error).message);
+        } catch (failure) {
+          setError((failure as Error).message);
           ws.close(4000);
         }
       };
@@ -98,10 +169,28 @@ export function useStudio() {
           return;
         }
         setStatus("reconnecting");
-        setError(
-          "연결을 다시 시도하고 있습니다. 주소·서버 실행·허용 웹 주소를 확인해 주세요",
+        setError(serverConnectionError(session.url));
+        timer = setTimeout(
+          () => {
+            void queryServerPermission(
+              session.url,
+              location.protocol,
+              navigator.permissions,
+            ).then((permission) => {
+              if (stopped) return;
+              if (
+                needsLocalPermission(session.url, location.protocol) &&
+                permission !== "granted"
+              ) {
+                setStatus("permission");
+                setError(localPermissionMessage(permission));
+                return;
+              }
+              open();
+            });
+          },
+          Math.min(1000 * 2 ** retries++, 15000),
         );
-        timer = setTimeout(open, Math.min(1000 * 2 ** attempt++, 15000));
       };
       ws.onerror = () => ws.close();
     };
@@ -109,10 +198,18 @@ export function useStudio() {
     return () => {
       stopped = true;
       clearTimeout(timer);
-      if (ws) ws.close();
+      socket?.close();
     };
   }, [session]);
+  useEffect(
+    () => () => {
+      pending.current?.abort();
+    },
+    [],
+  );
   const disconnect = () => {
+    ++attempt.current;
+    pending.current?.abort();
     setSession(null);
     setState(emptyState);
     setStatus("offline");

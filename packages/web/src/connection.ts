@@ -1,3 +1,4 @@
+import { serverAddressSpace } from "./localNetwork.ts";
 import type { Connection } from "./types";
 
 export function normalizeConnection(
@@ -23,8 +24,13 @@ export function normalizeConnection(
     url.pathname !== "/"
   )
     throw new Error("http(s) 서버 주소와 포트만 입력해 주세요");
-  if (pageProtocol === "https:" && url.protocol !== "https:")
-    throw new Error("HTTPS 웹에서는 HTTPS 서버 주소가 필요합니다");
+  const space = serverAddressSpace(url);
+  if (pageProtocol === "https:" && url.protocol === "http:" && !space)
+    throw new Error(
+      "HTTP는 localhost·로컬 IP·.local 서버에서만 사용할 수 있습니다. 외부 서버는 HTTPS 주소를 입력해 주세요",
+    );
+  if (space && url.hostname.endsWith("."))
+    url.hostname = url.hostname.slice(0, -1);
   const token = value.token.trim();
   if (!token) throw new Error("서버의 연결 키를 입력해 주세요");
   return { url: url.origin, token };

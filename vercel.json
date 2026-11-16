@@ -41,6 +41,15 @@
           "value": "attachment; filename=\"musicq-server.tar.gz\""
         }
       ]
+    },
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Permissions-Policy",
+          "value": "local-network=(self), loopback-network=(self)"
+        }
+      ]
     }
   ]
 }

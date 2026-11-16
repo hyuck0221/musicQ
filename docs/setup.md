@@ -156,7 +156,15 @@ MUSICQ_ORIGINS=https://musicq.hshim.dev,http://localhost:5173,http://127.0.0.1:5
 
 Preview 배포는 도메인이 달라집니다. 사용할 Preview 주소도 정확히 추가해야 합니다. `*.vercel.app` 같은 전체 와일드카드를 허용하지 않습니다. 커스텀 도메인을 쓰면 해당 웹 도메인을 추가하세요. 브라우저 저장 정보는 원점별로 분리되므로 Preview·Production·커스텀 도메인 간에는 최초 연결 설정을 각각 한 번 해야 합니다.
 
-**HTTPS로 배포된 웹은 HTTPS/WSS 서버에 연결해야 합니다.** 브라우저의 mixed-content 규칙 때문에 공개 HTTPS 웹에서 `http://192.168...` 서버에 직접 연결하는 구성은 동작하지 않습니다. 로컬 개발 HTTP 웹에서는 HTTP 서버로 연결할 수 있습니다.
+HTTPS 컨트롤 패널에서도 **로컬 HTTP 서버**에 연결할 수 있습니다. 지원 주소는 `localhost`·`*.localhost`, `127.x.x.x`·`::1`, 사설 IPv4(`10.x`, `172.16–31.x`, `192.168.x`), 링크 로컬·IPv6 사설 주소와 `.local` 호스트입니다. 일반 공개 HTTP 주소와 임의의 DNS 별칭은 허용하지 않습니다. `localhost`는 브라우저를 실행한 컴퓨터를 뜻합니다. 다른 기기에서 서버에 연결하려면 서버의 LAN IP와 바인딩·방화벽 설정을 확인하세요.
+
+최신 Chrome 등 지원 브라우저에서 최초 연결 시 **연결**을 누르고 로컬 네트워크/루프백 접근 권한을 허용하세요. 권한 상태를 확인할 수 있고 이미 허용되어 있으면 저장된 정보로 자동 연결합니다. 권한 확인 API를 지원하지 않는 브라우저는 직접 연결 버튼을 눌러 시도합니다. 차단한 권한은 사이트 설정에서 다시 허용해야 합니다. 지원하지 않는 브라우저에서는 HTTPS 역방향 프록시를 사용하세요.
+
+API에는 `targetAddressSpace`를 지정하고, WebSocket은 브라우저가 인식하는 로컬 주소의 `ws://`를 사용합니다. 로컬 HTTP 음악은 권한을 받은 fetch로 읽어 blob URL로 재생하므로 브라우저의 HTTP 미디어 자동 업그레이드를 피합니다. 이 경우 파일 로딩을 마친 뒤 재생하며, HTTPS 음악은 기존 Range 스트리밍을 유지합니다. CORS와 연결 키 인증은 동일하게 적용합니다.
+
+참고: [Chrome 로컬 네트워크 접근](https://developer.chrome.com/docs/modern-web-guidance/guides/security/local-network-access).
+
+외부 HTTPS 서버 또는 HTTPS 프록시를 사용할 때:
 
 권장 구성:
 

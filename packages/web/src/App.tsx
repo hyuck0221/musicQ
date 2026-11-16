@@ -1,3 +1,4 @@
+import { loadMediaSource } from "./mediaSource";
 import LibraryFilters, { validFilter } from "./LibraryFilters";
 import type { FilterRule } from "./LibraryFilters";
 import TrackList from "./TrackList";
@@ -74,6 +75,8 @@ export default function App() {
   const [now, setNow] = useState(Date.now());
   const audio = useRef<HTMLAudioElement>(null);
   const [audioBlocked, setAudioBlocked] = useState(false);
+  const [audioSource, setAudioSource] = useState<string | null>(null);
+  const [audioReload, setAudioReload] = useState(0);
   const [pending, setPending] = useState<Set<string>>(new Set());
   const selectedTrack = state.tracks.find((t) => t.id === state.player.trackId);
   const installed = state.models.filter((m) => m.status === "installed");
@@ -88,8 +91,11 @@ export default function App() {
   }, [draft]);
   useEffect(() => {
     if (online) setConnectOpen(false);
-    else if (status === "offline" && studio.error) setConnectOpen(true);
-  }, [online, status, studio.error]);
+  }, [online]);
+  useEffect(() => {
+    if ((status === "offline" || status === "permission") && studio.error)
+      setConnectOpen(true);
+  }, [status, studio.error]);
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 500);
     return () => clearInterval(t);
@@ -183,41 +189,87 @@ export default function App() {
             : 0),
       )
     : 0;
+  const mediaUrl =
+    online && selectedTrack && state.player.target === "browser"
+      ? connection.url + selectedTrack.mediaPath
+      : null;
+  useEffect(() => {
+    const controller = new AbortController();
+    let active = true;
+    let release = () => {};
+    setAudioSource(null);
+    if (mediaUrl) {
+      void loadMediaSource(mediaUrl, location.protocol, controller.signal)
+        .then((source) => {
+          if (!active) {
+            source.release();
+            return;
+          }
+          release = source.release;
+          setAudioSource(source.src);
+        })
+        .catch((error) => {
+          if (active && !controller.signal.aborted) setNotice(error.message);
+        });
+    }
+    return () => {
+      active = false;
+      controller.abort();
+      release();
+    };
+  }, [mediaUrl, audioReload]);
   // The server owns transport state. Browser audio is a streaming output only.
   useEffect(() => {
     const a = audio.current;
     if (!a) return;
-    if (!online || !selectedTrack || state.player.target !== "browser") {
+    if (
+      !online ||
+      !selectedTrack ||
+      state.player.target !== "browser" ||
+      !audioSource
+    ) {
       a.pause();
+      if (!audioSource && a.hasAttribute("src")) {
+        a.removeAttribute("src");
+        a.load();
+      }
       return;
     }
-    const url = connection.url + selectedTrack.mediaPath;
-    const desired = Math.min(
-      selectedTrack.duration,
-      state.player.position +
-        (state.player.playing
-          ? Math.max(
-              0,
-              (Date.now() + clockOffset - state.player.updatedAt) / 1000,
-            )
-          : 0),
-    );
+    let cancelled = false;
     const sync = () => {
+      const desired = Math.min(
+        selectedTrack.duration,
+        state.player.position +
+          (state.player.playing
+            ? Math.max(
+                0,
+                (Date.now() + clockOffset - state.player.updatedAt) / 1000,
+              )
+            : 0),
+      );
       if (Math.abs(a.currentTime - desired) > 0.8) a.currentTime = desired;
       a.volume = state.player.volume;
       if (state.player.playing)
         a.play()
-          .then(() => setAudioBlocked(false))
-          .catch(() => setAudioBlocked(true));
+          .then(() => {
+            if (!cancelled) setAudioBlocked(false);
+          })
+          .catch(() => {
+            if (!cancelled) setAudioBlocked(true);
+          });
       else a.pause();
     };
-    if (a.src !== url) {
-      a.src = url;
+    if (a.src !== audioSource) {
       a.addEventListener("loadedmetadata", sync, { once: true });
+      a.src = audioSource;
     } else sync();
-    return () => a.removeEventListener("loadedmetadata", sync);
-  }, [online, selectedTrack, state.player, connection.url, clockOffset]);
+    return () => {
+      cancelled = true;
+      a.removeEventListener("loadedmetadata", sync);
+    };
+  }, [online, selectedTrack, state.player, audioSource, clockOffset]);
   const playTrack = (track: Track) => {
+    setAudioReload((value) => value + 1);
     void act(() =>
       api("/api/player", "PATCH", {
         trackId: track.id,
@@ -1004,7 +1056,12 @@ export default function App() {
         <button
           className="audio-unlock secondary"
           onClick={() =>
-            void audio.current?.play().then(() => setAudioBlocked(false))
+            void audio.current
+              ?.play()
+              .then(() => setAudioBlocked(false))
+              .catch(() =>
+                setNotice("브라우저의 오디오 재생 권한을 확인해 주세요"),
+              )
           }
         >
           <Play />이 브라우저에서 소리 켜기
@@ -1187,7 +1244,12 @@ function ConnectionDialog({
           />
         </label>
         {error && (
-          <p className="error-text" role="alert">
+          <p
+            className={
+              status === "permission" ? "permission-note" : "error-text"
+            }
+            role={status === "permission" ? "status" : "alert"}
+          >
             {error}
           </p>
         )}
