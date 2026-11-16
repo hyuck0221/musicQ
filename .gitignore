@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+.musicq/
+*.tsbuildinfo
+.DS_Store
+artifacts/
+
+__pycache__/
+*.pyc
+
+.vercel/
+
+# Built from server source during web deployment
+packages/web/public/downloads/

@@ -1,0 +1,27 @@
+# Local state and generated assets must never be uploaded by the Vercel CLI.
+.git/
+.vercel/
+.idea/
+.musicq/
+.env
+.env.*
+!.env.example
+**/node_modules/
+**/dist/
+**/.cache/
+**/__pycache__/
+**/*.pyc
+**/*.tsbuildinfo
+*.log
+*.iml
+artifacts/
+
+# Server source is needed to build the downloadable installer; only dist is hosted.
+packages/server/test/
+packages/web/test/
+scripts/*
+!scripts/package-server.mjs
+!scripts/install-macos.sh
+!scripts/uninstall-macos.sh
+
+packages/web/public/downloads/

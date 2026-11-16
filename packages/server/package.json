@@ -1,0 +1,21 @@
+{
+  "name": "@musicq/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --env-file-if-exists=../../.env --watch src/index.mjs",
+    "start": "node --env-file-if-exists=../../.env src/index.mjs",
+    "test": "node --test test/*.test.mjs && python3 -m unittest discover -s test -p '*_test.py'",
+    "check": "node --check src/index.mjs && node --check src/service.mjs && node --check src/engine.mjs && node --check src/planner.mjs"
+  },
+  "dependencies": {
+    "fastify": "^5.12.8",
+    "@fastify/cors": "^11.2.0",
+    "@fastify/websocket": "^11.2.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "ws": "^8.19.0"
+  }
+}

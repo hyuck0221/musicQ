@@ -1,0 +1,4 @@
+# Replace with your server's actual DNS name and configure DNS before starting Caddy.
+musicq.example.com {
+  reverse_proxy 127.0.0.1:4310
+}

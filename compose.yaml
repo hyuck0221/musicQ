@@ -1,0 +1,31 @@
+services:
+  server:
+    build:
+      context: .
+      dockerfile: packages/server/Dockerfile
+    ports:
+      - "127.0.0.1:4310:4310"
+    environment:
+      MUSICQ_ORIGINS: ${MUSICQ_ORIGINS:-https://musicq.hshim.dev,http://localhost:5173,http://127.0.0.1:5173}
+      HF_TOKEN: ${HF_TOKEN:-}
+      MUSICQ_DEVICE: ${MUSICQ_DEVICE:-cpu}
+      MUSICQ_TOKEN: ${MUSICQ_TOKEN:-}
+      MUSICQ_MODEL_TIMEOUT: ${MUSICQ_MODEL_TIMEOUT:-1800}
+    volumes:
+      - musicq-data:/data
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 15s
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:4310/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+volumes:
+  musicq-data:

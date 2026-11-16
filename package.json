@@ -1,0 +1,22 @@
+{
+  "name": "musicq",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "packages/server",
+    "packages/web"
+  ],
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n server,web 'npm run dev -w @musicq/server' 'npm run dev -w @musicq/web'",
+    "build": "npm run build -w @musicq/web",
+    "check": "npm run check -w @musicq/web && npm run check -w @musicq/server",
+    "test": "npm run test -w @musicq/server && npm run test -w @musicq/web",
+    "package:server": "node scripts/package-server.mjs"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
