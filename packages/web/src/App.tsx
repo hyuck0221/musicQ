@@ -339,12 +339,14 @@ export default function App() {
         <a
           className="wordmark"
           href="#"
+          aria-label="musicQ 스튜디오"
           onClick={(e) => {
             e.preventDefault();
             setView("studio");
           }}
         >
-          music<span>Q</span>
+          <img className="brand-logo" src="/logo-96.png" alt="" width="36" height="36" />
+          <span className="brand-name" aria-hidden="true">music<span>Q</span></span>
         </a>
         <nav aria-label="주 메뉴">
           {(

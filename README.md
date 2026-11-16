@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="packages/web/public/logo.png" alt="musicQ 로고" width="96" height="96" />
+
 # musicQ
 
 음악을 만드는 **queue**, 음악을 재생하는 **cue**.

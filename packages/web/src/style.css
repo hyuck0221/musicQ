@@ -162,13 +162,25 @@ small {
   font-weight: 500;
   letter-spacing: -1px;
   display: flex;
-  align-items: baseline;
+  align-items: center;
   position: relative;
-  gap: 0;
+  gap: 10px;
+  flex-shrink: 0;
 }
-.wordmark > span:first-child {
+.brand-logo {
+  display: block;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+}
+.brand-name > span {
   color: var(--accent);
   font-weight: 500;
+}
+@media (max-width: 480px) {
+  .brand-name {
+    display: none;
+  }
 }
 
 nav {
@@ -1082,6 +1094,11 @@ main {
   }
   .wordmark {
     font-size: 22px;
+    gap: 8px;
+  }
+  .brand-logo {
+    width: 32px;
+    height: 32px;
   }
   nav {
     gap: 0;
